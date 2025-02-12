@@ -1,0 +1,117 @@
+/// Issue
+///
+/// 저장소에 작성한 이슈를 의미한다.
+/// 저장소의 이슈는 다른 작성자가 질문이나 버그 등 개발자에게 문제를 제기할 때 사용한다.
+/// 단순히 질문 용도로도 사용할 수 있으나, 이는 Owner가 명시한 내용에 맞춰 작성하는 것이 일반적이다.
+///
+/// @namespace Task
+model Issue {
+    /// 게시글 아이디로, 이 아이디를 통해서 이슈의 내용을 확인할 수 있다.
+    article_id String @id @db.Uuid
+
+    /// 이슈를 작성한 사람의 아이디
+    user_id String @db.Uuid
+
+    Task Task @relation(fields: [article_id], references: [article_id])
+
+    User     User       @relation(fields: [user_id], references: [id])
+    Assignee Assignee[]
+}
+
+/// 담당자 관계를 의미한다.
+///
+/// 담당자를 가리키기 위한 관계 테이블이다.
+///
+/// @namespace Task
+model Assignee {
+    /// 담당자의 아이디로, 유저의 아이디와 무관하게 담당 지정을 가리키기 위한 용도의 아이디
+    id String @id @db.Uuid
+
+    /// 담당자로 정한 이슈
+    issue_id String @db.Uuid
+
+    /// 담당해주길 원하는 사람의 아이디
+    ///
+    /// 담당를 한다는 것은 최소한 이 사람의 권한이 Write 권한이라는 의미이다.
+    /// 이 때, 권한은 Organization, Repository에 따라 다를 수 있다.
+    user_id String @db.Uuid
+
+    User  User  @relation(fields: [user_id], references: [id])
+    Issue Issue @relation(fields: [issue_id], references: [article_id])
+}
+
+/// PR 혹은 Pull Request
+///
+/// 어떤 커밋을 반영하고자 할 때, 개발자는 반영 요청을 하는데 이를 PR이라고 한다.
+/// PR은 반영을 원하는 브랜치로부터 다른 브랜치 이름을 가리킨다.
+/// 브랜치는 커밋에 이름을 붙인, 일종의 변수명에 해당하지만,
+/// 그럼에도 PR에서는 커밋이 아닌 브랜치를 기준으로 해야 한다.
+///
+/// @namespace Task
+model PullRequest {
+    /// 게시글 아이디로, 이 아이디를 통해서 이슈의 내용을 확인할 수 있다.
+    article_id String @id @db.Uuid
+
+    /// 이슈를 작성한 사람의 아이디
+    user_id String @db.Uuid
+
+    source_id String @db.Uuid
+
+    target_id String @db.Uuid
+
+    /// PR의 상태
+    ///
+    /// It must be one of: 'opened', 'closed', 'merged'
+    /// 논리적으로 하나의 source 브랜치로부터 다른 target 브랜치로의 PR은 1개만 존재 가능하다.
+    /// 따라서, 이미 열려있는 PR이 있는 경우 동일한 두 브랜치 사이 새로운 PR은 생성 불가하다.
+    status String
+
+    Task Task @relation(fields: [article_id], references: [article_id])
+
+    User User @relation(fields: [user_id], references: [id])
+
+    Reviewer Reviewer[]
+
+    Source Branch @relation("SourceBranch", fields: [source_id], references: [id])
+
+    Target Branch @relation("TargetBranch", fields: [target_id], references: [id])
+}
+
+/// 리뷰어 관계를 의미한다.
+///
+/// 리뷰어를 가리키기 위한 관계 테이블이다.
+///
+/// @namespace Task
+model Reviewer {
+    /// 리뷰어의 아이디로, 유저의 아이디와 무관하게 리뷰 지정을 가리키기 위한 용도의 아이디
+    id String @id @db.Uuid
+
+    /// 리뷰를 요청받은 PR의 아이디
+    pull_request_id String @db.Uuid
+
+    /// 리뷰해주길 원하는 사람의 아이디
+    ///
+    /// 리뷰를 한다는 것은 최소한 이 사람의 권한이 Write 권한이라는 의미이다.
+    /// 이 때, 권한은 Organization, Repository에 따라 다를 수 있다.
+    user_id String @db.Uuid
+
+    PullRequest PullRequest @relation(fields: [pull_request_id], references: [article_id])
+    User        User        @relation(fields: [user_id], references: [id])
+}
+
+/// @namespace Task
+model Task {
+    article_id String @id @db.Uuid
+    user_id    String @db.Uuid
+
+    /// 태스크 넘버
+    ///
+    /// 가리킬 수 있는 자연수 값으로, 1부터 시작한다.
+    /// 이슈나 PR을 작성할 때 # 기호 뒤에 숫자를 붙임으로써 이슈나 PR을 가리킬 수 있다.
+    number Int
+
+    Article     Article       @relation(fields: [article_id], references: [id])
+    Writer      User          @relation(fields: [user_id], references: [id])
+    PullRequest PullRequest[]
+    Issue       Issue[]
+}

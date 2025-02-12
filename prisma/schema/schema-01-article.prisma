@@ -1,0 +1,136 @@
+/// 게시글
+///
+/// 모든 게시글의 원형으로서 게시글의 Base가 된다.
+/// @namespace Article
+/// @erd Task
+model Article {
+    /// ID
+    ///
+    /// @format uuid
+    id String @id @db.Uuid
+
+    /// 마지막 스냅샷 아이디
+    ///
+    /// 마지막 스냅샷으로 바로 갈 수 있도록 아이디를 하나 더 걸어둔다.
+    /// 의도된 반 정규화이다.
+    last_snapshot_id String? @db.Uuid
+
+    ///
+    ///
+    /// 데이터가 생성된 시간
+    created_at DateTime @db.Timestamptz()
+
+    ///
+    ///
+    ///
+    deleted_at DateTime @db.Timestamptz()
+
+    ArticleSnapshot     ArticleSnapshot[]     @relation("ArticleSnapshot")
+    Comment             Comment[]
+    Task                Task[]
+    ArticleLastSnapshot ArticleLastSnapshot[]
+}
+
+/// @namespace Article
+model Comment {
+    id String @id @db.Uuid
+
+    /// 게시글의 아이디 
+    ///
+    /// 게시글의 아이디로부터 게시글의 스냅샷을 가고, 어떤 내용인지 추적할 수 있게 된다.
+    article_id String @db.Uuid
+
+    /// 작성자의 아이디
+    writer_id String @db.Uuid
+
+    /// 부모인 댓글이 있는 경우를 의미한다.
+    parent_id String?
+
+    Article         Article           @relation(fields: [article_id], references: [id])
+    Writer          User              @relation(fields: [writer_id], references: [id])
+    Children        Comment[]         @relation("parent-children")
+    Parent          Comment?          @relation("parent-children", fields: [parent_id], references: [id])
+    CommentSnapshot CommentSnapshot[]
+}
+
+/// @namespace Article
+model CommentSnapshot {
+    id         String @id @db.Uuid
+    comment_id String @db.Uuid
+    format     String
+
+    /// 
+    ///
+    ///
+    body    String
+    Comment Comment @relation(fields: [comment_id], references: [id])
+}
+
+/// @namespace Article
+model ArticleLastSnapshot {
+    article_id          String @id @db.Uuid
+    article_snapshot_id String @db.Uuid
+
+    Article  Article         @relation(fields: [article_id], references: [id])
+    Snapshot ArticleSnapshot @relation(fields: [article_snapshot_id], references: [id])
+
+    @@unique([article_snapshot_id])
+}
+
+/// @namespace Article
+model ArticleSnapshot {
+    /// ID
+    ///
+    /// @format uuid
+    id String @id @db.Uuid
+
+    ///
+    ///
+    ///
+    article_id String @db.Uuid
+
+    /// 제목
+    ///
+    ///
+    title String
+
+    format String
+
+    /// 
+    ///
+    ///
+    body String
+
+    ///
+    ///
+    /// 데이터가 생성된 시간이지만, Article 입장에서는 수정된 시간과 같다.
+    created_at DateTime @db.Timestamptz()
+
+    Article             Article                 @relation("ArticleSnapshot", fields: [article_id], references: [id])
+    ToFiles             ArticleAttachmentFile[]
+    ArticleLastSnapshot ArticleLastSnapshot[]
+
+    @@index([article_id, created_at])
+}
+
+/// @namespace Article
+model ArticleAttachmentFile {
+    /// ID
+    ///
+    /// @format uuid
+    id String @id @db.Uuid
+
+    ///
+    ///
+    ///
+    articleSnapshot_id String @db.Uuid
+
+    /// 파일의 URI
+    ///
+    /// @format uri
+    original_url String
+
+    created_at DateTime @db.Timestamptz()
+
+    ArticleSnapshot ArticleSnapshot @relation(fields: [articleSnapshot_id], references: [id])
+}
