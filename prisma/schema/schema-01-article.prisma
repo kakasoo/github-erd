@@ -1,6 +1,9 @@
 /// 게시글
 ///
 /// 모든 게시글의 원형으로서 게시글의 Base가 된다.
+/// 예컨대, Github의 issue, pull_request 등은 Article의 일종이다.
+/// 이런 경우 Article을 Base로 가지는 테이블이 될 것이며, 해당 테이블들은 Article의 ID를 가지기만 해도,
+/// 게시글과 같이 글을 작성하고 수정하는 모든 기능이 ERD 상 완성된 것으로 볼 수 있게 되는 것이다.
 /// @namespace Article
 /// @erd Task
 model Article {
@@ -20,10 +23,12 @@ model Article {
     /// 데이터가 생성된 시간
     created_at DateTime @db.Timestamptz()
 
+    /// 데이터가 삭제된 시간
     ///
-    ///
-    ///
+    /// 해당 시간이 비어있으면(NULL이면) 아직 삭제가 되지 않은 것이다.
     deleted_at DateTime @db.Timestamptz()
+
+    //---- RELATIONS ----
 
     ArticleSnapshot     ArticleSnapshot[]     @relation("ArticleSnapshot")
     Comment             Comment[]
@@ -31,20 +36,34 @@ model Article {
     ArticleLastSnapshot ArticleLastSnapshot[]
 }
 
+/// 댓글
+///
+/// 모든 댓글의 Base가 된다.
+/// 댓글은 칼럼만 두고 보았을 때는 {@link Article 게시글}과 거의 비슷한데, 이는 글을 쓴다는 목적이 같기 때문이다.
+/// 다만 개념 상 {@link Article 게시글}과는 달리 {@link Article 게시글}에 달리는 짧은 글귀라는 점에서 차이가 있으므로 별도의 테이블로 관리함이 맞다.
+///
 /// @namespace Article
 model Comment {
     id String @id @db.Uuid
 
-    /// 게시글의 아이디 
+    /// {@link Article 게시글} 아이디 
     ///
-    /// 게시글의 아이디로부터 게시글의 스냅샷을 가고, 어떤 내용인지 추적할 수 있게 된다.
+    /// {@link Article 게시글} 아이디로부터 {@link Article 게시글} 스냅샷을 가고, 어떤 내용인지 추적할 수 있게 된다.
     article_id String @db.Uuid
 
     /// 작성자의 아이디
+    ///
+    /// 이 댓글을 작성한 사람의 아이디를 의미한다.
     writer_id String @db.Uuid
 
+    /// 부모 댓글의 아이디
+    /// 
     /// 부모인 댓글이 있는 경우를 의미한다.
+    /// Github에서는 부모 댓글이라는 개념이 존재하지 않지만, 이 또한 추후 추가될 가능성이 있다.
+    /// 기존에는 없던 sub_issue 개념이 생긴 것과 같이 기획 상 변경을 대응하기 위해 미리 생성하는 칼럼이다.
     parent_id String?
+
+    //---- RELATIONS ----
 
     Article         Article           @relation(fields: [article_id], references: [id])
     Writer          User              @relation(fields: [writer_id], references: [id])
@@ -53,23 +72,62 @@ model Comment {
     CommentSnapshot CommentSnapshot[]
 }
 
+/// @{link Comment 댓글} 스냅샷
+///
+/// @{link Comment 댓글}의 변경 내역을 관리하기 위해 만들어진 스냅샷이다.
+///
 /// @namespace Article
 model CommentSnapshot {
-    id         String @id @db.Uuid
-    comment_id String @db.Uuid
-    format     String
+    /// ID
+    ///
+    ///
+    id String @id @db.Uuid
 
-    /// 
+    /// {@link Comment 댓글}의 아이디
     ///
     ///
-    body    String
+    comment_id String @db.Uuid
+    format     String /// md, html, text 중 하나를 의미한다.
+
+    /// 본문 내용
+    ///
+    ///
+    body String
+
+    /// 데이터가 생성된 시간
+    ///
+    /// 데이터가 생성된 시간이지만, Comment 입장에서는 수정된 시간과 같다.
+    /// 이 시간이 가장 마지막인, 즉 마지막 스냅샷이 현재 댓글의 내용으로 유저에게 표시된다.
+    created_at DateTime @db.Timestamptz()
+
+    //---- RELATIONS ----
+
     Comment Comment @relation(fields: [comment_id], references: [id])
 }
 
+/// {@link Article 게시글}의 마지막 스냅샷
+///
+/// 성능 상 이슈를 해결하기 위해서 마지막 스냅샷에 대한 참조를 건다.
+/// 이 테이블을 이용하면 전체 스냅샷을 조회할 필요 없이 항상 마지막 스냅샷을 찾을 수 있다.
+/// 게시글을 수정, 즉 게시글 스냅샷을 추가할 때에는 항상 이 참조 값을 바꾸어야 한다.
+///
+/// 모든 게시글은, 1:N 관계임에도 반드시 스냅샷을 가지므로 논리적으로 이 테이블의 row를 반드시 가진다.
+/// 이는 DB의 제약 조건과 무관하게, 반드시 논리적인 연결이 있음을 의미한다.
+///
 /// @namespace Article
 model ArticleLastSnapshot {
-    article_id          String @id @db.Uuid
+    /// {@link Article 게시글}의 아이디
+    ///
+    /// 게시글의 아이디를 FK이자 PK로 가져, 게시글마다 1개의 row만 가진다고 명시한다.
+    article_id String @id @db.Uuid
+
+    /// {@link ArticleSnapshot}의 아이디
+    ///
+    /// 스냅샷의 아이디로, 유니크 설정이 걸려 단 1개만 존재할 수 있다.
+    /// 이는 각 게시글마다 마지막 스냅샷으로서 걸 수 있는 스냅샷이 단 1개만 있다는 것이다.
     article_snapshot_id String @db.Uuid
+
+    //---- RELATIONS ----
 
     Article  Article         @relation(fields: [article_id], references: [id])
     Snapshot ArticleSnapshot @relation(fields: [article_snapshot_id], references: [id])
@@ -77,6 +135,8 @@ model ArticleLastSnapshot {
     @@unique([article_snapshot_id])
 }
 
+/// {@link Article 게시글}의 스냅샷 목록
+///
 /// @namespace Article
 model ArticleSnapshot {
     /// ID
@@ -84,7 +144,7 @@ model ArticleSnapshot {
     /// @format uuid
     id String @id @db.Uuid
 
-    ///
+    /// {@link Article 게시글}의 아이디
     ///
     ///
     article_id String @db.Uuid
@@ -94,16 +154,17 @@ model ArticleSnapshot {
     ///
     title String
 
-    format String
+    format String /// md, html, text 중 하나를 의미한다.
 
-    /// 
+    /// 본문 내용 
     ///
     ///
     body String
 
-    ///
+    /// 데이터가 생성된 시간
     ///
     /// 데이터가 생성된 시간이지만, Article 입장에서는 수정된 시간과 같다.
+    /// 이 시간이 가장 마지막인, 즉 마지막 스냅샷이 현재 게시글의 내용으로 유저에게 표시된다.
     created_at DateTime @db.Timestamptz()
 
     Article             Article                 @relation("ArticleSnapshot", fields: [article_id], references: [id])
@@ -113,6 +174,12 @@ model ArticleSnapshot {
     @@index([article_id, created_at])
 }
 
+/// 게시글 첨부 파일
+///
+/// 게시글에 첨부된 파일을 의미한다.
+/// 파일은 {@link ArticleSnapshot 스냅샷}에 연결되며, 파일의 변경이 일어날 경우 스냅샷이 생성되어야 한다.
+/// 만약 파일의 변동이 아닌 스냅샷의 변동인 경우, 파일 내역은 그대로 다음 스냅샷으로 이어진다.
+///
 /// @namespace Article
 model ArticleAttachmentFile {
     /// ID
@@ -123,7 +190,7 @@ model ArticleAttachmentFile {
     ///
     ///
     ///
-    articleSnapshot_id String @db.Uuid
+    article_snapshot_id String @db.Uuid
 
     /// 파일의 URI
     ///
@@ -132,5 +199,5 @@ model ArticleAttachmentFile {
 
     created_at DateTime @db.Timestamptz()
 
-    ArticleSnapshot ArticleSnapshot @relation(fields: [articleSnapshot_id], references: [id])
+    ArticleSnapshot ArticleSnapshot @relation(fields: [article_snapshot_id], references: [id])
 }

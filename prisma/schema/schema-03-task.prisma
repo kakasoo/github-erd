@@ -12,8 +12,8 @@ model Issue {
     /// 이슈를 작성한 사람의 아이디
     user_id String @db.Uuid
 
-    Task Task @relation(fields: [article_id], references: [article_id])
-
+    //---- RELATIONS ----
+    Task     Task       @relation(fields: [article_id], references: [article_id])
     User     User       @relation(fields: [user_id], references: [id])
     Assignee Assignee[]
 }
@@ -36,6 +36,7 @@ model Assignee {
     /// 이 때, 권한은 Organization, Repository에 따라 다를 수 있다.
     user_id String @db.Uuid
 
+    //---- RELATIONS ----
     User  User  @relation(fields: [user_id], references: [id])
     Issue Issue @relation(fields: [issue_id], references: [article_id])
 }
@@ -55,8 +56,14 @@ model PullRequest {
     /// 이슈를 작성한 사람의 아이디
     user_id String @db.Uuid
 
+    /// 소스 브랜치의 아이디
+    ///
+    /// 
     source_id String @db.Uuid
 
+    /// 타겟 브랜치의 아이디
+    ///
+    ///
     target_id String @db.Uuid
 
     /// PR의 상태
@@ -66,15 +73,13 @@ model PullRequest {
     /// 따라서, 이미 열려있는 PR이 있는 경우 동일한 두 브랜치 사이 새로운 PR은 생성 불가하다.
     status String
 
-    Task Task @relation(fields: [article_id], references: [article_id])
+    //---- RELATIONS ----
 
-    User User @relation(fields: [user_id], references: [id])
-
+    Task     Task       @relation(fields: [article_id], references: [article_id])
+    User     User       @relation(fields: [user_id], references: [id])
     Reviewer Reviewer[]
-
-    Source Branch @relation("SourceBranch", fields: [source_id], references: [id])
-
-    Target Branch @relation("TargetBranch", fields: [target_id], references: [id])
+    Source   Branch     @relation("SourceBranch", fields: [source_id], references: [id])
+    Target   Branch     @relation("TargetBranch", fields: [target_id], references: [id])
 }
 
 /// 리뷰어 관계를 의미한다.
@@ -95,14 +100,18 @@ model Reviewer {
     /// 이 때, 권한은 Organization, Repository에 따라 다를 수 있다.
     user_id String @db.Uuid
 
+    //---- RELATIONS ----
     PullRequest PullRequest @relation(fields: [pull_request_id], references: [article_id])
     User        User        @relation(fields: [user_id], references: [id])
 }
 
 /// @namespace Task
 model Task {
+    /// 게시글의 아이디
     article_id String @id @db.Uuid
-    user_id    String @db.Uuid
+
+    /// 작성자의 아이디
+    user_id String @db.Uuid
 
     /// 태스크 넘버
     ///

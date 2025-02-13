@@ -1,8 +1,9 @@
 /// Owner
 ///
-/// 깃허브 상에서 `Owner`는 반드시 유저 마다 1개씩 존재하는 것이긴 하지만,
+/// Github 상에서 `Owner`는 반드시 유저 마다 1개씩 존재하는 것이긴 하지만,
 /// 반드시 그것이 유저를 대상으로 한다고 말할 수는 없는 것이다.
 /// 때로는 유저가 아니라 Organization이 소유자일 수도 있다.
+/// Owner는 논리적으로 {@link User 유저}와 {@link Organization 조직}에 반드시 1개가 존재한다.
 /// 
 /// @namespace Repository
 model Owner {
@@ -28,17 +29,9 @@ model Owner {
   /// 만약 Repository의 소유자가 집단일 경우 user_id가 존재한다.
   organization_id String? @db.Uuid
 
-  /// Application
-  ///
-  /// 유저가 어떤 서비스에 가입했는지를 의미한다.
-  /// 여기서는 github, gitlab, gitbucket이 존재하며, 추후에 확장될 여지가 있다.
-  application String
-
   //---- RELATIONS ----
 
-  /// 유저가 소유한 Repository
-  /// 
-  Repository   Repository[]
+  Repository   Repository[] /// Owner가 소유한 Repository
   User         User?         @relation("User", fields: [user_id], references: [id])
   Organization Organization? @relation("Organization", fields: [organization_id], references: [id])
 
@@ -47,6 +40,11 @@ model Owner {
 }
 
 /// Organization
+///
+/// 조직을 의미한다.
+/// Github 상에서 조직은 {@link User 유저}와 마찬가지로 {@link Repository 코드 저장소} 여러 개를 갖는 소유 단위이다.
+/// 조직에는 여러 {@link User 유저}가 각기 다른 권한으로 속할 수 있되, 최초 생성자는 무조건 소유자 권한을 가진다.
+/// 각 권한이 무엇이 있는지는 {@link Manager 매니저} 테이블을 참고하라.
 ///
 /// @namespace Organization
 /// @erd Repository
@@ -65,9 +63,10 @@ model Organization {
   /// name
   ///
   /// 서비스에서의 조직 이름
-  name  String @unique
-  Owner Owner? @relation("Organization")
+  name String @unique
 
+  //---- RELATIONS ----
+  Owner   Owner?    @relation("Organization")
   Creator User      @relation(fields: [creator_id], references: [id])
   Manager Manager[]
 }
@@ -76,6 +75,9 @@ model Organization {
 ///
 /// Github에서는 하나의 조직을, 생성한 Owner 외에도 관리할 수 있을 뿐더러, Owner 를 다수로 지정할 수도 있다.
 /// 다수의 관리자들을 두는 경우, 여기서 Organization의 아이디와 User의 ID를 매핑하면 된다.
+/// 어떠한 권한들이 존재하는지는 `type` 칼럼의 주석을 참고하자.
+///
+/// 하나의 {@link Organization 조직}, 하나의 {@link Repository 코드 저장소}에는 동일한 유저는 1번씩만 매니저로 등록될 수 있다.
 ///
 /// @namespace Organization
 model Manager {
@@ -117,12 +119,14 @@ model Manager {
   User         User         @relation(fields: [user_id], references: [id])
   Organization Organization @relation(fields: [organization_id], references: [id])
 
-  @@unique([user_id, organization_id])
+  @@unique([user_id, organization_id, repository_id])
 }
 
 /// User
 ///
 /// Github에서의 유저를 의미한다.
+/// 유저는 '개인' 1명을 의미하며, 레포지토리를 생성하거나 커밋을 하는 등 Github에서의 활동 주체이다.
+/// 여기서 유저는 회원가입한 사람을 의미한다.
 ///
 /// @namespace Repository
 /// @erd Organization
@@ -150,14 +154,12 @@ model User {
 
   //---- RELATIONS ----
 
-  /// 사용자가 포크한 레포지토리
+  /// 사용자가 포크하거나 좋아요를 누른 레포지토리
   Interaction Interaction[]
   Comment     Comment[]
   Task        Task[]
   Commit      Commit[]
 
-  ///
-  ///
   /// 논리적으로는 반드시 존재해야 한다.
   Owner        Owner?         @relation("User")
   Organization Organization[]
@@ -170,7 +172,13 @@ model User {
 
 /// Repository
 ///
-/// 깃허브의 레포지토리를 의미한다.
+/// Github의 레포지토리를 의미한다.
+/// 레포지토리는 코드 저장소를 의미하며, 하나의 레포지토리는 0개 이상의 Branch를 가진다.
+/// Branch는 커밋의 특정 해시에 사람이 알아볼 수 있는 자연어 이름을 붙인 것인데,
+/// 엄밀히 말해 Repository는 여러 개의 Commit 이력을 가지고 있다고 말할 수 있겠다.
+/// Commit은 링크드 리스트의 형태처럼 이어지지만, 분기가 되어 서로 다른 리스트로 이어지기도 한다.
+/// 단, 커밋 연결이 역행하여 순회를 이루거나, 하나의 커밋이 두 개 이상의 이전 커밋을 가지는 경우는 없다.
+///
 /// @namespace Repository
 model Repository {
   /// ID
@@ -272,7 +280,7 @@ model Branch {
   targetPullRequests PullRequest[] @relation("TargetBranch")
 }
 
-/// Branch가 캐시한 파일 목록
+/// Branch의 파일 목록
 ///
 /// 각 커밋은 커밋으로 인해 변경된 파일만을 지닌다.
 /// 따라서 특정 시점에서의 전체 파일 목록을 조회하고자 하면 그 전까지의 커밋들을 순회하는 수 밖에 없다.
